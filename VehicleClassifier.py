@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 import glob
 import time
+import random
 from skimage.feature import hog
 from sklearn.svm import LinearSVC
 from sklearn.preprocessing import StandardScaler
@@ -36,28 +37,34 @@ class VehicleClassifier:
         self._scaler = None
 
     def train(self,
-              vehicles_path,
-              non_vehicles_path,
+              vehicles_paths,
+              non_vehicles_paths,
               sample_size=None):
 
-        cars = glob.glob(vehicles_path)
-        not_cars = glob.glob(non_vehicles_path)
+        cars = []
+        for path in vehicles_paths:
+            cars += glob.glob(path)
+        not_cars = []
+        for path in non_vehicles_paths:
+            not_cars += glob.glob(path)
 
+        print('Found {0} car samples'.format(len(cars)))
+        print('Found {0} non-car samples'.format(len(not_cars)))
         if sample_size is None:
-            sample_size = max(len(cars), len(not_cars))
+            sample_size = min(len(cars), len(not_cars))
 
+        random.seed(0)
+        random.shuffle(cars)
         cars = cars[0:sample_size]
+        random.shuffle(not_cars)
         not_cars = not_cars[0:sample_size]
 
         features = []
         for file in cars + not_cars:
-            hist_range = (0, 256)
-            if file.lower().endswith("png"):
-                hist_range = (0., 1.)
-            # todo: test if png or jpg, set bin range accordingly
-            image = mpimg.imread(file)
-            features.append(self._extract_features(image, hist_range))
+            image = cv2.imread(file)
+            features.append(self._extract_features(image, (0, 256)))
         print('Feature vector length:', len(features[0]))
+        print('Total samples: ', len(features))
 
         x = np.array(features).astype(np.float64)
         self._scaler = StandardScaler().fit(x)
@@ -74,6 +81,22 @@ class VehicleClassifier:
         print(round(t2 - t, 2), 'Seconds to train classifier...')
         print('Test Accuracy of classifier = ', round(self._classifier.score(x_test, y_test), 4))
 
+    def search_vehicles(self,
+                        img,
+                        heatmap,
+                        windows,
+                        scale=(64, 64)):
+        on_windows = []
+        for window in windows:
+            test_img = cv2.resize(img[window[0][1]:window[1][1], window[0][0]:window[1][0]], scale)
+            features = self._extract_features(test_img, histogram_range=(0, 256))
+            test_features = self._scaler.transform(np.array(features).reshape(1, -1))
+            prediction = self._classifier.predict(test_features)
+            if prediction == 1:
+                on_windows.append(window)
+                heatmap[window[0][1]:window[1][1], window[0][0]:window[1][0]] += 1
+        return on_windows
+
     def _extract_features(self,
                           image,
                           histogram_range):
@@ -82,15 +105,15 @@ class VehicleClassifier:
         # todo: do we really need to copy the image?
         if self._color_space != 'RGB':
             if self._color_space == 'HSV':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+                feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
             elif self._color_space == 'LUV':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2LUV)
+                feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2LUV)
             elif self._color_space == 'HLS':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+                feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2HLS)
             elif self._color_space == 'YUV':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2YUV)
+                feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
             elif self._color_space == 'YCrCb':
-                feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2YCrCb)
+                feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
         else:
             feature_image = np.copy(image)
 
@@ -126,7 +149,7 @@ class VehicleClassifier:
                                       orientations=self._orientations,
                                       pixels_per_cell=(self._pixels_per_cell, self._pixels_per_cell),
                                       cells_per_block=(self._cells_per_block, self._cells_per_block),
-                                      transform_sqrt=True,
+                                      transform_sqrt=False,
                                       visualise=visualize,
                                       feature_vector=feature_vector)
             return features, hog_image
@@ -135,7 +158,7 @@ class VehicleClassifier:
                            orientations=self._orientations,
                            pixels_per_cell=(self._pixels_per_cell, self._pixels_per_cell),
                            cells_per_block=(self._cells_per_block, self._cells_per_block),
-                           transform_sqrt=True,
+                           transform_sqrt=False,
                            visualise=visualize,
                            feature_vector=feature_vector)
             return features
