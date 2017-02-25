@@ -81,6 +81,7 @@ class VehicleClassifier:
         print(round(t2 - t, 2), 'Seconds to train classifier...')
         print('Test Accuracy of classifier = ', round(self._classifier.score(x_test, y_test), 4))
 
+    # todo: remove scale?
     def search_vehicles(self,
                         img,
                         heatmap,
