@@ -43,7 +43,7 @@ class VehicleDetection:
         for hm in self._heatmaps[-3:-1]:
             heatmap += hm
 
-        thr_heatmap = np.array(heatmap > 4)
+        thr_heatmap = np.array(heatmap > 20)
         labels = label(thr_heatmap)
         annotated_img = self._draw_labeled_boxes(frame, labels, color=(0, 0, 255), thickness=6)
 
