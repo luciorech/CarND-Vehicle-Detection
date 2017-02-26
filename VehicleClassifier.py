@@ -81,15 +81,13 @@ class VehicleClassifier:
         print(round(t2 - t, 2), 'Seconds to train classifier...')
         print('Test Accuracy of classifier = ', round(self._classifier.score(x_test, y_test), 4))
 
-    # todo: remove scale?
     def search_vehicles(self,
                         img,
                         heatmap,
-                        windows,
-                        scale=(64, 64)):
+                        windows):
         on_windows = []
         for window in windows:
-            test_img = cv2.resize(img[window[0][1]:window[1][1], window[0][0]:window[1][0]], scale)
+            test_img = cv2.resize(img[window[0][1]:window[1][1], window[0][0]:window[1][0]], (64, 64))
             features = self._extract_features(test_img, histogram_range=(0, 256))
             test_features = self._scaler.transform(np.array(features).reshape(1, -1))
             prediction = self._classifier.predict(test_features)
@@ -98,12 +96,79 @@ class VehicleClassifier:
                 heatmap[window[0][1]:window[1][1], window[0][0]:window[1][0]] += 1
         return on_windows
 
-    def _extract_features(self,
-                          image,
-                          histogram_range):
-        features = []
-        # todo: improve conversion, deal with BGR inputs
-        # todo: do we really need to copy the image?
+    def fast_search_vehicles(self,
+                             img,
+                             heatmap,
+                             x_start_stop,
+                             y_start_stop,
+                             scale=1,
+                             cells_per_step=2):
+        on_windows = []
+
+        feature_image = img[y_start_stop[0]:y_start_stop[1], x_start_stop[0]:x_start_stop[1], :]
+        feature_image = self._convert_color(feature_image)
+        if scale != 1:
+            feature_image = cv2.resize(feature_image, (np.int(feature_image.shape[1] / scale),
+                                                       np.int(feature_image.shape[0] / scale)))
+
+        img_x_size = feature_image.shape[1]
+        img_y_size = feature_image.shape[0]
+        x_blocks = (img_x_size // self._pixels_per_cell) - 1
+        y_blocks = (img_y_size // self._pixels_per_cell) - 1
+        # todo: 64 shouldn't be hardcoded - it's the size of the training images?
+        window_size = 64
+        blocks_per_window = (window_size // self._pixels_per_cell) - 1
+        x_steps = (x_blocks - blocks_per_window) // cells_per_step
+        y_steps = (y_blocks - blocks_per_window) // cells_per_step
+
+        img_hog_features = {}
+        if self._hog_features:
+            for channel in self._hog_channels:
+                img_hog_features[channel] = self._get_hog_features(feature_image[:, :, channel],
+                                                                   visualize=False,
+                                                                   feature_vector=False)
+        window_count = 0
+        for x in range(x_steps):
+            for y in range(y_steps):
+                window_count += 1
+
+                features = []
+                x_pos = x * cells_per_step
+                y_pos = y * cells_per_step
+                x_left = x_pos * self._pixels_per_cell
+                y_top = y_pos * self._pixels_per_cell
+
+                # todo: 64 shouldn't be hardcoded - it's the size of the training images?
+                img_window = cv2.resize(feature_image[y_top:y_top + window_size, x_left:x_left + window_size],
+                                        (64, 64))
+                if self._spatial_features:
+                    feat = self._bin_spatial(img_window)
+                    features.append(feat)
+
+                if self._color_histogram_features:
+                    feat = self._color_hist(img_window, bins_range=(0, 256))
+                    features.append(feat)
+
+                if self._hog_features:
+                    feat = []
+                    for channel in self._hog_channels:
+                        channel_hog = img_hog_features[channel][y_pos:y_pos + blocks_per_window, x_pos:x_pos + blocks_per_window].ravel()
+                        feat.append(channel_hog)
+                    features.append(np.concatenate(feat))
+
+                test_features = self._scaler.transform(np.concatenate(features).reshape(1, -1))
+                prediction = self._classifier.predict(test_features)
+                if prediction == 1:
+                    box_left = np.int(x_left * scale)
+                    box_top = np.int(y_top * scale)
+                    box_window = np.int(window_size * scale)
+                    box_ll = (box_left + x_start_stop[0], box_top + y_start_stop[0])
+                    box_ur = (box_ll[0] + box_window, box_ll[1] + box_window)
+                    on_windows.append((box_ll, box_ur))
+                    heatmap[box_ll[1]:box_ur[1], box_ll[0]:box_ur[0]] += 1
+        return on_windows
+
+    def _convert_color(self, image):
         if self._color_space != 'RGB':
             if self._color_space == 'HSV':
                 feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -117,6 +182,13 @@ class VehicleClassifier:
                 feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
         else:
             feature_image = np.copy(image)
+        return feature_image
+
+    def _extract_features(self,
+                          image,
+                          histogram_range):
+        features = []
+        feature_image = self._convert_color(image)
 
         if self._spatial_features:
             feat = self._bin_spatial(feature_image)
@@ -173,9 +245,9 @@ class VehicleClassifier:
 
     def _color_hist(self, img, bins_range=(0, 256)):
         """
-        Computes the histogram for each image channel and concatenates it in a single array
+        Computes the histogram for each image channel and concatenates it into a single array
+        Expects a 3-channel image
         """
-        # todo: Expects a 3-channel image, make this generic
         channel1_hist = np.histogram(img[:, :, 0], bins=self._color_histogram_bins, range=bins_range)
         channel2_hist = np.histogram(img[:, :, 1], bins=self._color_histogram_bins, range=bins_range)
         channel3_hist = np.histogram(img[:, :, 2], bins=self._color_histogram_bins, range=bins_range)

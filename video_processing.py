@@ -7,6 +7,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Driving Lane Detection')
     parser.add_argument('--input', default='./project_video.mp4', help='Path to input video file.')
     parser.add_argument('--output', default='./output_videos/project_video.mp4', help='Path to output video file.')
+    parser.add_argument('--heatmap-threshold', default=5, type=int)
     parser.add_argument('--start', default=0, type=float)
     parser.add_argument('--end', default=None, type=float)
     parser.add_argument('--debug', dest='debug', action='store_true')
@@ -20,8 +21,7 @@ if __name__ == "__main__":
         with open(clf, 'rb') as pfile:
             classifiers.append(pickle.load(pfile))
 
-    v_detection = VehicleDetection(classifiers, debug_mode=args.debug)
-    v_detection.create_sliding_windows(x_start_stop=[0, 1279], y_start_stop=[400, 719])
+    v_detection = VehicleDetection(classifiers, heatmap_threshold=args.heatmap_threshold, debug_mode=args.debug)
     start = float(args.start)
     end = float(args.end) if args.end is not None else None
     in_video = VideoFileClip(args.input).subclip(t_start=start, t_end=end)
