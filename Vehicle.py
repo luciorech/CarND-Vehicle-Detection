@@ -13,8 +13,8 @@ class Vehicle:
                (self._y > box[0][1]) and (self._y < box[1][1])
 
     def update(self, box):
-        self._x = (self._x + (box[0][0] + box[1][0]) // 2) // 2
-        self._y = (self._y + (box[0][1] + box[1][1]) // 2) // 2
+        self._x = (self._x + ((box[0][0] + box[1][0]) // 2)) // 2
+        self._y = (self._y + ((box[0][1] + box[1][1]) // 2)) // 2
         self._x_span.append(abs(box[0][0] - box[1][0]))
         self._y_span.append(abs(box[0][1] - box[1][1]))
         self._frame_cnt += 1
@@ -32,6 +32,12 @@ class Vehicle:
 
     def centroid(self):
         return self._x, self._y
+
+    def x_span(self):
+        return self._x_span
+
+    def y_span(self):
+        return self._y_span
 
     def frame_cnt(self):
         return self._frame_cnt

@@ -35,6 +35,7 @@ class VehicleClassifier:
         self._hog_features = hog_features
         self._classifier = None
         self._scaler = None
+        self._img_size = None
 
     def train(self,
               vehicles_paths,
@@ -62,6 +63,8 @@ class VehicleClassifier:
         features = []
         for file in cars + not_cars:
             image = cv2.imread(file)
+            if self._img_size is None:
+                self._img_size = (image.shape[0], image.shape[1])
             features.append(self._extract_features(image, (0, 256)))
         print('Feature vector length:', len(features[0]))
         print('Total samples: ', len(features))
@@ -106,7 +109,7 @@ class VehicleClassifier:
         on_windows = []
 
         feature_image = img[y_start_stop[0]:y_start_stop[1], x_start_stop[0]:x_start_stop[1], :]
-        feature_image = self._convert_color(feature_image)
+        feature_image = self.convert_color(feature_image)
         if scale != 1:
             feature_image = cv2.resize(feature_image, (np.int(feature_image.shape[1] / scale),
                                                        np.int(feature_image.shape[0] / scale)))
@@ -115,8 +118,7 @@ class VehicleClassifier:
         img_y_size = feature_image.shape[0]
         x_blocks = (img_x_size // self._pixels_per_cell) - 1
         y_blocks = (img_y_size // self._pixels_per_cell) - 1
-        # todo: 64 shouldn't be hardcoded - it's the size of the training images?
-        window_size = 64
+        window_size = self._img_size[0]
         blocks_per_window = (window_size // self._pixels_per_cell) - 1
         x_steps = (x_blocks - blocks_per_window) // cells_per_step
         y_steps = (y_blocks - blocks_per_window) // cells_per_step
@@ -124,9 +126,9 @@ class VehicleClassifier:
         img_hog_features = {}
         if self._hog_features:
             for channel in self._hog_channels:
-                img_hog_features[channel] = self._get_hog_features(feature_image[:, :, channel],
-                                                                   visualize=False,
-                                                                   feature_vector=False)
+                img_hog_features[channel] = self.get_hog_features(feature_image[:, :, channel],
+                                                                  visualize=False,
+                                                                  feature_vector=False)
         window_count = 0
         for x in range(x_steps):
             for y in range(y_steps):
@@ -138,9 +140,8 @@ class VehicleClassifier:
                 x_left = x_pos * self._pixels_per_cell
                 y_top = y_pos * self._pixels_per_cell
 
-                # todo: 64 shouldn't be hardcoded - it's the size of the training images?
                 img_window = cv2.resize(feature_image[y_top:y_top + window_size, x_left:x_left + window_size],
-                                        (64, 64))
+                                        self._img_size)
                 if self._spatial_features:
                     feat = self._bin_spatial(img_window)
                     features.append(feat)
@@ -168,7 +169,7 @@ class VehicleClassifier:
                     heatmap[box_ll[1]:box_ur[1], box_ll[0]:box_ur[0]] += 1
         return on_windows
 
-    def _convert_color(self, image):
+    def convert_color(self, image):
         if self._color_space != 'RGB':
             if self._color_space == 'HSV':
                 feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -188,7 +189,7 @@ class VehicleClassifier:
                           image,
                           histogram_range):
         features = []
-        feature_image = self._convert_color(image)
+        feature_image = self.convert_color(image)
 
         if self._spatial_features:
             feat = self._bin_spatial(feature_image)
@@ -201,18 +202,18 @@ class VehicleClassifier:
         if self._hog_features:
             hog_features = []
             for channel in self._hog_channels:
-                hog_features.append(self._get_hog_features(feature_image[:, :, channel],
-                                                           visualize=False,
-                                                           feature_vector=True))
+                hog_features.append(self.get_hog_features(feature_image[:, :, channel],
+                                                          visualize=False,
+                                                          feature_vector=True))
             hog_features = np.ravel(hog_features)
             features.append(hog_features)
 
         return np.concatenate(features)
 
-    def _get_hog_features(self,
-                          img,
-                          visualize=False,
-                          feature_vector=True):
+    def get_hog_features(self,
+                         img,
+                         visualize=False,
+                         feature_vector=True):
         """
         Extracts HOG features from a channel
         If visualize is True, also returns an image representing the extracted HOG features

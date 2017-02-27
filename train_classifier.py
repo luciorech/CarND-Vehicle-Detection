@@ -58,6 +58,16 @@ if __name__ == "__main__":
         pickle.dump(clf, outfile)
 
     if args.debug:
+        image = cv2.imread('./datasets/vehicles/KITTI_extracted/1.png')
+        print(image.shape)
+        color_cvt = clf.convert_color(image)
+        print(color_cvt.shape)
+        _, hog_img = clf.get_hog_features(color_cvt[:,:,0], visualize=True)
+        f, ax = plt.subplots(1, 2, figsize=(48, 18))
+        ax[0].imshow(image[..., ::-1])
+        ax[1].imshow(hog_img, cmap="gray")
+        plt.show(block=True)
+
         for img_path in glob.glob('./test_images/*.jpg'):
             image = cv2.imread(img_path)
             draw_image = np.copy(image)
@@ -76,7 +86,7 @@ if __name__ == "__main__":
             windows += ip.slide_window(image, x_start_stop=[None, None], y_start_stop=[400, None],
                                        xy_window=(128, 128), xy_overlap=(0.5, 0.5))
             print("Total search windows = {0}".format(len(windows)))
-            hot_windows = clf.search_vehicles(image, heatmap, windows, scale=(64, 64))
+            hot_windows = clf.search_vehicles(image, heatmap, windows)
             window_img = ip.draw_boxes(draw_image, hot_windows, color=(0, 0, 255), thick=6)
 
             f, ax = plt.subplots(1, 2, figsize=(48, 18))
