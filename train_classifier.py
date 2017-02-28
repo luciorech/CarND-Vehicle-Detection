@@ -2,7 +2,6 @@ import numpy as np
 import cv2
 import glob
 import matplotlib.pyplot as plt
-import image_processing as ip
 import argparse
 import pickle
 
@@ -62,34 +61,30 @@ if __name__ == "__main__":
         print(image.shape)
         color_cvt = clf.convert_color(image)
         print(color_cvt.shape)
-        _, hog_img = clf.get_hog_features(color_cvt[:,:,0], visualize=True)
-        f, ax = plt.subplots(1, 2, figsize=(48, 18))
-        ax[0].imshow(image[..., ::-1])
-        ax[1].imshow(hog_img, cmap="gray")
+        _, hog_img_0 = clf.get_hog_features(color_cvt[:, :, 0], visualize=True)
+        _, hog_img_1 = clf.get_hog_features(color_cvt[:, :, 1], visualize=True)
+        _, hog_img_2 = clf.get_hog_features(color_cvt[:, :, 2], visualize=True)
+        f, ax = plt.subplots(2, 2, figsize=(10, 10))
+        ax[0][0].imshow(image[..., ::-1])
+        ax[0][1].imshow(hog_img_0, cmap="gray")
+        ax[1][0].imshow(hog_img_1, cmap="gray")
+        ax[1][1].imshow(hog_img_2, cmap="gray")
         plt.show(block=True)
 
         for img_path in glob.glob('./test_images/*.jpg'):
             image = cv2.imread(img_path)
-            draw_image = np.copy(image)
-
-            # Uncomment the following line if you extracted training
-            # data from .png images (scaled 0 to 1 by mpimg) and the
-            # image you are searching is a .jpg (scaled 0 to 255)
-            # image = image.astype(np.float32)/255
             heatmap = np.zeros_like(image[:, :, 0])
+            hot_windows = clf.fast_search_vehicles(image,
+                                                   heatmap,
+                                                   x_start_stop=[0, 1279],
+                                                   y_start_stop=[400, 719],
+                                                   scale=1,
+                                                   cells_per_step=2)
+            draw_image = np.copy(image)
+            for bbox in hot_windows:
+                cv2.rectangle(draw_image, bbox[0], bbox[1], (0, 255, 0), 6)
 
-            windows = []
-            windows += ip.slide_window(image, x_start_stop=[None, None], y_start_stop=[400, None],
-                                       xy_window=(64, 64), xy_overlap=(0.5, 0.5))
-            windows += ip.slide_window(image, x_start_stop=[None, None], y_start_stop=[400, None],
-                                       xy_window=(96, 96), xy_overlap=(0.5, 0.5))
-            windows += ip.slide_window(image, x_start_stop=[None, None], y_start_stop=[400, None],
-                                       xy_window=(128, 128), xy_overlap=(0.5, 0.5))
-            print("Total search windows = {0}".format(len(windows)))
-            hot_windows = clf.search_vehicles(image, heatmap, windows)
-            window_img = ip.draw_boxes(draw_image, hot_windows, color=(0, 0, 255), thick=6)
-
-            f, ax = plt.subplots(1, 2, figsize=(48, 18))
-            ax[0].imshow(window_img[...,::-1])
+            f, ax = plt.subplots(1, 2, figsize=(18, 18))
+            ax[0].imshow(draw_image[...,::-1])
             ax[1].imshow(heatmap, cmap="gray")
             plt.show(block=True)

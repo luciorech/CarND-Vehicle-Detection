@@ -55,16 +55,21 @@ class VehicleDetection:
             result = np.zeros_like(frame)
             x_size = frame.shape[1] // 2
             y_size = frame.shape[0] // 2
-            boxes = self._draw_boxes(frame, hot_windows, color=(0, 0, 255), thickness=1)
+            boxes = self._draw_boxes(frame, hot_windows, color=(0, 0, 255), thickness=3)
             boxes = cv2.resize(boxes, (x_size, y_size))
             result[y_size:, x_size:, :] = boxes
             scaled_heatmap = cv2.resize(heatmap, (x_size, y_size)) * 32
             result[:y_size, x_size:, :] = cv2.merge((scaled_heatmap, scaled_heatmap, scaled_heatmap))
-            scaled_labels = cv2.resize(np.array(labels[0], dtype=heatmap.dtype), (x_size, y_size))
+            labels_img = np.array(labels[0], dtype=heatmap.dtype)
+            scaled_labels = cv2.resize(labels_img, (x_size, y_size))
             scaled_labels *= (255 // (labels[1] + 1))
             result[y_size:, :x_size, :] = cv2.merge((scaled_labels, scaled_labels, scaled_labels))
             scaled_ann = cv2.resize(annotated_img, (x_size, y_size))
             result[:y_size, :x_size, :] = scaled_ann
+            cv2.putText(result, "Sliding window detection", (x_size + 5, y_size + 15), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255))
+            cv2.putText(result, "Heatmap", (x_size + 5, 15), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255))
+            cv2.putText(result, "Labeled Heatmap", (5, y_size + 15), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255))
+            cv2.putText(result, "Detected Vehicles", (5, 15), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255))
             cv2.imwrite("./debug/%s.jpg" % self._frame_cnt, result[...,::-1])
         else:
             result = annotated_img
