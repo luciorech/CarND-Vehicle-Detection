@@ -25,7 +25,7 @@ a bounding box for each detected vehicle
 [image5]: ./output_images/sliding_window_2.png
 [image6]: output_images/video_detection_sample.jpg
 [project_video]: https://youtu.be/6MdclPVWHzg
-[project_video_debug]: https://youtu.be/6MdclPVWHzg
+[project_video_debug]: https://youtu.be/IqktNfCsEe8
 
 ## Vehicle Classifier (<code>VehicleClassifier.py</code>)
 
